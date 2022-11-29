@@ -4,6 +4,7 @@ import time
 import pandas as pd
 import os
 from sqlalchemy import create_engine
+import dateutil.parser
 
 RATE_LIMIT_TIMEOUT = .1
 
@@ -42,6 +43,6 @@ database_url = f'mysql://{database_user}:{database_password}@{database_host}:{da
 engine = create_engine(database_url, echo=True)
 connection = engine.connect()
 
-df['timestamp'] = datetime.datetime.now()
+response = requests.get('http://worldtimeapi.org/api/timezone/America/New_York').json()
+df['timestamp'] = dateutil.parser.isoparse(response['datetime'])
 df.to_sql(endpoint, con=engine, if_exists='replace')
-
