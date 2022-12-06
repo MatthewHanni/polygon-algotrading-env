@@ -17,12 +17,11 @@ database_host = os.environ.get('DATABASE_HOST')
 database_port = os.environ.get('DATABASE_PORT')
 multiplier = os.environ.get('MULTIPLIER')
 timespan = os.environ.get('TIMESPAN')
-last_entry_datetime = os.environ.get('LAST_ENTRY_DATETIME')
+last_entry_date = os.environ.get('LAST_ENTRY_DATE')
 last_entry_timestamp = os.environ.get('LAST_ENTRY_TIMESTAMP')
 adjusted = os.environ.get('ADJUSTED')
 
 limit = 50000
-
 
 if adjusted == 'true':
     database_name = 'aggregates_adjusted'
@@ -32,13 +31,19 @@ else:
     print(f'Unknown adjusted type:{type(adjusted)}\tValue:{adjusted}')
     exit()
 
-if last_entry_datetime is None:
+if last_entry_date is None:
     from_ = DEFAULT_START_DATE
 else:
-    from_ = str(last_entry_datetime.date())
+    from_ = last_entry_date
 
 to_ = datetime.date.today()
 table_name = ticker.upper()
+
+if type(last_entry_timestamp) is str:
+    try:
+        last_entry_timestamp = int(last_entry_timestamp)
+    except:
+        last_entry_timestamp = None
 
 
 def ts_to_datetime(ts) -> str:
@@ -87,6 +92,6 @@ database_url = f'mysql://{database_user}:{database_password}@{database_host}:{da
 engine = create_engine(database_url, echo=True)
 connection = engine.connect()
 
-df['timestamp'] = datetime.datetime.now(pytz.timezone('US/Eastern'))
+df['insert_timestamp'] = datetime.datetime.now(pytz.timezone('US/Eastern'))
 
 df.to_sql(table_name, con=engine, if_exists='append')
