@@ -77,7 +77,7 @@ with DAG(
     default_args=default_args,
     dag_id='dag_reference_data_etl_splits',
     description="DAG: ETL for reference data/splits",
-    start_date=datetime.datetime(2022,11,28),
+    start_date=datetime.datetime(2022,11,28,8,0,0),
     schedule_interval='@daily'
 ) as dag:
     etl_task = PythonOperator(
