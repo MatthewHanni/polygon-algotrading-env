@@ -2,3 +2,4 @@ requests
 SQLAlchemy
 pandas
 mysqlclient
+boto3
