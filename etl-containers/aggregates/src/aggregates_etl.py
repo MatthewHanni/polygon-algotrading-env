@@ -1,3 +1,15 @@
+"""Aggregates ETL
+
+This script extracts data from the Polygon.io aggregates endpoint.
+The aggregates endpoint provides aggregated candles for a given ticker.
+Extracted JSON data is written to an S3 bucket.
+
+The intended manner of execution for this script is via containerised compute, such as Amazon ECS.
+Parameters including API keys, database credentials, and endpoint parameters are provided as ENV arguments.
+
+"""
+
+
 import datetime
 import requests
 import time
@@ -10,7 +22,36 @@ import boto3
 import random
 import string
 
-DEFAULT_START_DATE = datetime.datetime(year=2018, month=1, day=1)
+def ts_to_datetime(ts) -> datetime:
+    '''
+            Returns a naive datetime object representation of an epoch timestamp .
+
+                    Parameters:
+                            ts (int): The Unix Msec timestamp for the start of the aggregate window.
+                    Returns:
+                            dt (str): datetime representation of ts
+    '''
+    # TODO we also need to convert this eastern time. It seems to do so automatically
+    dt = datetime.datetime.fromtimestamp(ts / 1000.0)
+    return dt
+
+
+def get_nonce(length=5):
+    '''
+        Returns a random 5-digit string. Used to prevent (significantly reduce) naming collisions.
+
+                Parameters:
+                        length (int): Desired nonce length
+                Returns:
+                        result_str (str): randomized uppercase+digits nonce of the length specified in the arguments
+        '''
+    letters = string.ascii_uppercase + string.digits
+    result_str = ''.join(random.choice(letters) for i in range(length))
+    return result_str
+
+
+
+DEFAULT_START_DATE = datetime.datetime(year=1990, month=1, day=1)
 RATE_LIMIT_TIMEOUT = 1
 
 ticker = os.environ.get('TICKER')
@@ -43,24 +84,21 @@ else:
     print(f'Unknown adjusted type:{type(adjusted)}\tValue:{adjusted}')
     exit()
 
+
+
 if latest_entry_timestamp is None:
+    # If we have not yet recorded data for this ticker, start from the predefined date
     from_dt = DEFAULT_START_DATE
 else:
+    # If we have collected data,
     latest_entry_timestamp = int(latest_entry_timestamp)
-    from_dt = datetime.datetime.fromtimestamp(latest_entry_timestamp / 1000.0)
+
+
+    from_dt = ts_to_datetime(latest_entry_timestamp)
 
 table_name = ticker.upper()
 
 
-def ts_to_datetime(ts) -> str:
-    x = datetime.datetime.fromtimestamp(ts / 1000.0)
-    return x
-
-
-def get_nonce(length=5):
-    letters = string.ascii_uppercase + string.digits
-    result_str = ''.join(random.choice(letters) for i in range(length))
-    return result_str
 
 
 to_ = str(datetime.date.today())

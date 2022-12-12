@@ -1,3 +1,12 @@
+"""Reference Data ETL - Tickers
+
+This DAG orchestrates the reference-data ETL container task.
+Extracted data is converted to a Pandas DataFrame and overwrites existing data in a MySQL table.
+
+
+"""
+
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 import datetime
@@ -11,6 +20,15 @@ default_args = {
 }
 
 def etl():
+    '''
+        Makes a connection to ECS via boto3 and
+        creates a task based on the task definition specified in the Airflow secrets.
+
+                Parameters:
+                        None
+                Returns:
+                        None
+        '''
 
     print('Assigning variables')
     endpoint = 'tickers'

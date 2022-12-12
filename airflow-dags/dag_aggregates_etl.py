@@ -1,3 +1,10 @@
+"""Aggregates Data ETL DAG
+
+This DAG orchestrates the aggregates ETL container task.
+This task cycles through all stock tickers stored in the project RDS database
+
+"""
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 import datetime
@@ -15,6 +22,12 @@ default_args = {
 
 
 def get_db_connection():
+    """Gets and prints the spreadsheet's header columns
+
+    Returns:
+        connection: A SqlAlchemy database connection
+"""
+
     DATABASE_USER = Variable.get("RDS_INFERNO_DATABASE_USER")
     DATABASE_PASSWORD = Variable.get("RDS_INFERNO_DATABASE_PASSWORD")
     DATABASE_HOST = Variable.get("RDS_INFERNO_DATABASE_HOST")
@@ -27,10 +40,16 @@ def get_db_connection():
 
 
 def get_ticker_list(conn):
-    ticker_list = []
+    """Retrieve a list of stock tickers from project database. Truncated to 128 for proof of concept.
 
-    # ticker_list = ['AAPL']
-    # return ticker_list
+    Args:
+        connection (sqlalchemy.engine.base.Engine): A SqlAlchemy database connection
+
+    Returns:
+        ticker_list: a list of stock tickers
+    """
+
+    ticker_list = []
 
     query = """SELECT ticker FROM reference_db.tickers WHERE market = 'stocks'"""
     results = conn.execute(query).fetchall()
@@ -42,14 +61,26 @@ def get_ticker_list(conn):
     return ticker_list
 
 
-def get_most_recent_key(ticker, s3_client, bucket_name):
+def get_most_recent_key(ticker, s3_client):
+
+    """Retrieve a list of stock tickers from project database. Truncated to 128 for proof of concept.
+
+    Args:
+        ticker (str): stock ticker
+        s3_client (boto3.session.BaseClient): boto3 client connection to S3
+
+    Returns:
+        max_key: the S3 key associated with the object most recently uploaded tagged to that ticker. None, otherwise.
+    """
+
+
     database_name = 'aggregates_adjusted'
     print(f'Looking for latest record for {ticker}')
-    bucket_name = Variable.get("AGGREGATES_BUCKET")
-    print(f'Bucket name set:{ticker}')
+
+
     prefix = f'{database_name}/{ticker}/'
     print(f'Prefix set:{prefix}')
-    all_keys = get_key_list(s3_client=s3_client, bucket_name=bucket_name, prefix=prefix)
+    all_keys = get_key_list(s3_client=s3_client, prefix=prefix)
     if len(all_keys) == 0:
         return None
     max_date = None
@@ -64,9 +95,19 @@ def get_most_recent_key(ticker, s3_client, bucket_name):
     return max_key
 
 
-def get_key_list(s3_client, bucket_name, prefix):
+def get_key_list(s3_client, prefix):
+    """Returns a list of object keys associated with the given ticker's aggregate data
+
+    Args:
+        s3_client (boto3.session.BaseClient): boto3 client connection to S3
+        prefix (str): the stock ticker and other organizational information which create a logically unique entity.
+
+    Returns:
+        all_keys: A list of S3 objects which match the prefix. A blank list, otherwise.
+    """
     all_keys = []
     next_continuation_token = None
+    bucket_name = Variable.get("AGGREGATES_BUCKET")
     while True:
         print('Looking for keys...')
         response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix) if next_continuation_token is None \
@@ -84,7 +125,18 @@ def get_key_list(s3_client, bucket_name, prefix):
     return all_keys
 
 
-def get_latest_key_record_offsets(s3_client, bucket_name, key):
+def get_latest_key_record_offsets(s3_client, key):
+
+    """Returns the latest timestamp of observed data from the most recently uploaded file for the ticker.
+
+    Args:
+        s3_client (boto3.session.BaseClient): boto3 client connection to S3
+        key (str): The S3 object key of the ticker's most recently uploaded file
+
+    Returns:
+        latest_entry_timestamp: The latest observation for a Unix Msec timestamp for the start of the aggregate window
+    """
+    bucket_name = Variable.get("AGGREGATES_BUCKET")
     s3_client.download_file(bucket_name, key, 'tmp.json')
     print('Downloaded key')
     latest_entry_timestamp = None
@@ -98,7 +150,17 @@ def get_latest_key_record_offsets(s3_client, bucket_name, key):
     return latest_entry_timestamp
 
 
-def get_latest_record_information(ticker, conn):
+def get_latest_record_information(ticker):
+    """Calls helper functions to determine the latest file object we've ingested for this ticker (if any)
+    and the latest record's timestamp. This is needed to incrementally retrieve data from Polygon's endpoint.
+
+    Args:
+        s3_client (boto3.session.BaseClient): boto3 client connection to S3
+        key (str): The S3 object key of the ticker's most recently uploaded file
+
+    Returns:
+        latest_entry_timestamp: The latest observation for a Unix Msec timestamp for the start of the aggregate window
+    """
     bucket_name = Variable.get("AGGREGATES_BUCKET")
     aws_access_key_id = Variable.get("AWS_ACCESS_KEY_ID")
     aws_secret_access_key = Variable.get("AWS_SECRET_ACCESS_KEY")
@@ -106,7 +168,7 @@ def get_latest_record_information(ticker, conn):
     print('Making connection to S3')
     s3_client = boto3.client('s3', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key,
                              region_name=region_name)
-    most_recent_key = get_most_recent_key(ticker, s3_client, bucket_name)
+    most_recent_key = get_most_recent_key(ticker, s3_client)
     if most_recent_key is None:
         return None
 
@@ -117,18 +179,28 @@ def get_latest_record_information(ticker, conn):
     return latest_entry_timestamp
 
 
-def get_latest_record_information_db(ticker, conn):
-    try:
-        results = conn.execute(
-            f'SELECT max(datetime),max(t) FROM aggregates_adjusted.{ticker} order by t desc').fetchall()
-
-        last_entry_timestamp = str(results[0][1])
-        return last_entry_timestamp
-    except:
-        return None
+# def get_latest_record_information_db(ticker, conn):
+#     try:
+#         results = conn.execute(
+#             f'SELECT max(datetime),max(t) FROM aggregates_adjusted.{ticker} order by t desc').fetchall()
+#
+#         last_entry_timestamp = str(results[0][1])
+#         return last_entry_timestamp
+#     except:
+#         return None
 
 
 def process_ticker(ticker, conn, ecs_client):
+
+    """   Makes a connection to ECS via boto3 and creates a task based on the task definition specified in the Airflow secrets.
+
+    Args:
+        ecs_client (boto3.session.BaseClient): boto3 client connection to ec2
+        ticker (str): Stock ticker
+        conn (sqlalchemy.engine.base.Engine): A SqlAlchemy database connection
+
+
+    """
     cluster = Variable.get("ECS_CLUSTER_POLYGON_ARN")
     task_definition = Variable.get("ECS_CLUSTER_TASK_DEFINITION_AGGREGATES")
     AGGREGATES_API_KEY = Variable.get("POLYGON_AGGREGATES_API_KEY")
