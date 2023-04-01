@@ -55,6 +55,7 @@ def start(endpoint, api_key,s3_client):
         time.sleep(rate_limit_timeout)
 
     df = pd.DataFrame(all_results)
+    df = df.drop_duplicates()
     df.to_csv(tmp_csv, index=False)
 
     with open(tmp_csv, 'rb') as f:
