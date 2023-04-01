@@ -86,6 +86,7 @@ def start(ticker, adjusted, api_key,s3_client):
 
         from_ = latest_result_date
     df = pd.DataFrame(all_results)
+    df = df.drop_duplicate()
     df.to_csv(tmp_csv, index=False)
 
     with open(tmp_csv, 'rb') as f:
