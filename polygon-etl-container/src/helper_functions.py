@@ -7,40 +7,13 @@ import string
 import random
 import datetime
 import os
+import logging
 
 CONFIG_PATH = 'configuration.conf'
-
-def fatal_error(msg):
-    try:
-        pass
-    except:
-        pass
-    exit(-1)
 
 
 def get_file_timestamp():
     return datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-
-def print_log(msg):
-    print(f'{datetime.datetime.now()} {msg}')
-
-def create_log_file(name):
-    config = load_config()
-    log_dir_path = config['polygon']['log_dir']
-    if not os.path.exists(log_dir_path):
-        os.mkdir(log_dir_path)
-    log_file_name = fr'{name}--{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}.log'
-    log_file_path = os.path.join(log_dir_path,log_file_name)
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s\t%(levelname)s\t%(message)s',
-        handlers=[
-            logging.FileHandler(log_file_path),
-            logging.StreamHandler()
-        ]
-    )
-    logging.info('Start')
-    return logging
 
 
 def load_config():

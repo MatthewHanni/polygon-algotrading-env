@@ -8,15 +8,15 @@ import helper_functions as hf
 import requests
 import time
 import pandas as pd
-import boto3
-import logging
 import pathlib
+import logging
 
 tmp_csv = 'tmp.csv'
 
 
 def start(endpoint, api_key,s3_client):
-    hf.print_log(msg=f'Starting reference encdpoint collection:{endpoint}')
+    logger = logging.getLogger('logger')
+    logger.info(msg=f'Starting reference endpoint collection:{endpoint}')
     config = hf.load_config()
     bucket = config['polygon']['bucket']
     data_folder = config['polygon']['data_folder']
@@ -31,17 +31,18 @@ def start(endpoint, api_key,s3_client):
     url = f'https://api.polygon.io/v3/reference/{endpoint}?apiKey={api_key}&limit=1000'
     all_results = []
     while True:
-        hf.print_log(f'Current cumulative record count:{len(all_results)}. Calling endpoint {url}')
+        logger.debug(f'Current cumulative record count:{len(all_results)}. Calling endpoint {url}')
         response = requests.get(url)
 
         if response.status_code != 200:
-            hf.print_log(f'reference/{endpoint} endpoint returned non-200 status_code.')
+            logger.debug(f'reference/{endpoint} endpoint returned non-200 status_code.')
             try:
-                hf.print_log(f'Status code:{response.status_code}')
-                hf.print_log(str(response.json()))
+                logger.debug(f'Status code:{response.status_code}')
+                logger.debug(str(response.json()))
             except:
-                pass
-            hf.fatal_error(f'polygon: Fatal error.')
+                logger.exception('Invalid status')
+                exit()
+
 
         response_json = response.json()
         all_results.extend(response_json['results'])
