@@ -21,7 +21,7 @@ tmp_json = 'tmp.json'
 tmp_csv = 'tmp.csv'
 
 
-def start(ticker, adjusted, api_key,s3_client):
+def start(ticker, adjusted, api_key, s3_client):
     logger = logging.getLogger('logger')
     config = load_config()
     bucket = config['polygon']['bucket']
@@ -37,7 +37,7 @@ def start(ticker, adjusted, api_key,s3_client):
         adjusted = 'false'
         adjusted_key_descriptor = 'raw'
     else:
-        logger.error(f'Invalid adjusted parameter #{adjusted}#')
+        logger.error('Invalid adjusted parameter #%s#',adjusted)
         exit()
 
     out_key = str(pathlib.PurePosixPath(data_folder, 'aggregates', ticker, f'{ticker}--{adjusted_key_descriptor}.csv'))
@@ -47,14 +47,13 @@ def start(ticker, adjusted, api_key,s3_client):
     while True:
 
         url = f'https://api.polygon.io/v2/aggs/ticker/{ticker}/range/{MULTIPLIER}/{TIMESPAN}/{from_}/{to_}?adjusted={adjusted}&sort=asc&limit={LIMIT}&apiKey={api_key}'
-        logger.debug(f'Querying {url}')
+        debug_url = url.replace(api_key, 'xXx_API_KEY_xXx')
+        logger.debug('Querying %s', debug_url)
         time.sleep(rate_limit_timeout)
         response = requests.get(url)
 
         if response.status_code != 200:
-            logger.debug('aggregates endpoint returned non-200 status_code')
-            logger.debug(f'Status code:{response.status_code}')
-
+            logger.debug('aggregates endpoint returned non-200 status_code: %s', response.status_code)
             break
         try:
             response_json = response.json()
@@ -63,8 +62,6 @@ def start(ticker, adjusted, api_key,s3_client):
         except:
             logger.critical('Could not parse JSON response')
             break
-
-
 
         # If we've returned 0 results, we are up-to-date
         if response_json['resultsCount'] == 0:
@@ -81,7 +78,7 @@ def start(ticker, adjusted, api_key,s3_client):
         latest_result_date = datetime.datetime.fromtimestamp(latest_timestamp / 1000.0).date()
 
         if to_ == latest_result_date:
-            logger.debug(f'Latest date reached:{to_}')
+            logger.debug('Latest date reached:%s', to_)
             break
 
         from_ = latest_result_date

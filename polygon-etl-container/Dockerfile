@@ -4,6 +4,7 @@ WORKDIR /src
 
 COPY /src .
 
+ENV DEBUG_LEVEL INFO
 
 RUN pip install -r requirements.txt
 
