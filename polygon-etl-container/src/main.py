@@ -9,7 +9,7 @@ import os
 # By default, the debug-level is set to info in the Dockerfile environment variable,
 # but a command arg can be passed to override.
 debug_level_arg = os.getenv('DEBUG_LEVEL')
-debug_level_arg = 'DEBUG'
+
 if debug_level_arg.upper() == 'INFO':
     debug_level = logging.INFO
 else:
